@@ -273,6 +273,14 @@
           (cdr (car a)))
         (t (lookup v (cdr a)))))
 
+; test cases for lookup
+
+(check= (lookup 'x nil)
+        1)
+
+(check= (lookup 'x '((x . 3/5)))
+        3/5)
+
 ;; What happens when we divide by 0? We are going to throw an
 ;; error. So, we will model that as follows.
 
@@ -311,20 +319,37 @@
 
 ;; Feel free to define helper functions as needed.
 
+
+; TODO: improve ad-hoc definition of saeval
 (definec saeval (e :saexpr a :assignment) :rat-err
   (match e
     (:rational e)
     (:var (lookup e a))
     (:usaexpr
-     (('- x) (- x))
-     (('/ x) (/ x)))
+     (('- x) (if (erp (saeval x a))
+		 *er*
+	         (- (saeval x a))))
+     (('/ x) (if (or (erp (saeval x a)) (zerop (saeval x a)))
+		 *er*
+	         (/ (saeval x a)))))
     (:bsaexpr
-     (('+ x y) (+ x y))
-     (('- x y) (- x y))
-     (('* x y) (* x y))
-     (('/ x y) (if (zerop y) 'er (/ x y)))
-     (('^ x y) (if (not (integerp y)) 'er
-		   (if (and (zerop x) (< y 0)) 'er (expt x y))))
+     ((x '+ y) (if (or (erp (saeval x a)) (erp (saeval y a)))
+		   *er*
+		   (+ (saeval x a) (saeval y a))))
+     ((x '- y) (if (or (erp (saeval x a)) (erp (saeval y a)))
+		   *er*
+		   (- (saeval x a) (saeval y a))))
+     ((x '* y) (if (or (erp (saeval x a)) (erp (saeval y a)))
+		   *er*
+		   (* (saeval x a) (saeval y a))))
+     ((x '/ y) (if (or (erp (saeval x a)) (erp (saeval y a)) (zerop (saeval y a)))
+		   *er*
+		   (/ (saeval x a) (saeval y a))))
+     ((x '^ y) (if (or (erp (saeval x a)) (erp (saeval y a)) (not (integerp (saeval y a))))
+		   *er*
+		   (if (and (zerop (saeval x a)) (< (saeval y a) 0))
+		       *er*
+		       (expt (saeval x a) (saeval y a)))))
      )))
                     
 (check= (saeval '((x + y) - (- z))
