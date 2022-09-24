@@ -320,36 +320,34 @@
 ;; Feel free to define helper functions as needed.
 
 
-; TODO: improve ad-hoc definition of saeval
+; TODO: find out why this function times out proving body contracts
 (definec saeval (e :saexpr a :assignment) :rat-err
   (match e
     (:rational e)
     (:var (lookup e a))
     (:usaexpr
-     (('- x) (if (erp (saeval x a))
-		 *er*
-	         (- (saeval x a))))
-     (('/ x) (if (or (erp (saeval x a)) (zerop (saeval x a)))
-		 *er*
-	         (/ (saeval x a)))))
+     (('- x) (match (saeval x a)
+		 (*er* *er*)
+	         (b (- b))))
+     (('/ x) (match (saeval x a)
+		 (*er* *er*)
+	         (b (if (zerop b) *er* (/ b))))))
     (:bsaexpr
-     ((x '+ y) (if (or (erp (saeval x a)) (erp (saeval y a)))
-		   *er*
-		   (+ (saeval x a) (saeval y a))))
-     ((x '- y) (if (or (erp (saeval x a)) (erp (saeval y a)))
-		   *er*
-		   (- (saeval x a) (saeval y a))))
-     ((x '* y) (if (or (erp (saeval x a)) (erp (saeval y a)))
-		   *er*
-		   (* (saeval x a) (saeval y a))))
-     ((x '/ y) (if (or (erp (saeval x a)) (erp (saeval y a)) (zerop (saeval y a)))
-		   *er*
-		   (/ (saeval x a) (saeval y a))))
-     ((x '^ y) (if (or (erp (saeval x a)) (erp (saeval y a)) (not (integerp (saeval y a))))
-		   *er*
-		   (if (and (zerop (saeval x a)) (< (saeval y a) 0))
-		       *er*
-		       (expt (saeval x a) (saeval y a)))))
+     ((x '+ y) (match (list (saeval x a) (saeval y a))
+		 ((:or (*er* &) (& *er*)) *er*)
+		 ((a b) (+ a b))))
+     ((x '- y) (match (list (saeval x a) (saeval y a))
+		 ((:or (*er* &) (& *er*)) *er*)
+		 ((a b) (- a b))))
+     ((x '* y) (match (list (saeval x a) (saeval y a))
+		 ((:or (*er* &) (& *er*)) *er*)
+		 ((a b) (* a b))))
+     ((x '/ y) (match (list (saeval x a) (saeval y a))
+		 ((:or (*er* &) (& *er*)) *er*)
+		 ((a b) (if (zerop b) *er* (/ a b)))))
+     ((x '^ y) (match (list (saeval x a) (saeval y a))
+		 ((:or (*er* &) (& *er*)) *er*)
+		 ((a b) (if (or (integerp b) (and (zerop a) (< b 0))) *er* (expt a b)))))
      )))
                     
 (check= (saeval '((x + y) - (- z))
@@ -417,17 +415,23 @@
 
 ;; 1. -x = -(-(-x)), for var x
 
-(property ...)
+(property (a :assignment)
+  (== (saeval '(- x) a)
+      (saeval '(- (- (- x))) a)))
 
 ;; 2. (x - y) = (x + (- y)), for *any* vars x, y
 ;; Hint: the backquote/comma combo can be your friend.
 
-(property ...)
+(property (x :var y :var a :assignment)
+  (== (saeval '(x - y) a)
+      (saeval '(x + (- y)) a)))
 
 ;; 3. (x * (y + z)) = ((x * y) + (x * z)), for saexpr's x, y, z
 ;; Note! x, y, z are saexpr's not vars!
 
-(property ...)
+(property (x :saexpr y :saexpr z :saexpr a :assignment)
+  (== (saeval (x * (y + z)) a)
+      (saeval ((x * y) + (x * z)) a)))
 
 ;; Notice that the following is true because error = error.
 
@@ -436,15 +440,29 @@
 
 ;; 4. (1 / (x / y)) = (y / x), for saexpr's x, y,
 
-(property ...)
+; TODO: this gives errors sometimes
+(property (x :saexpr y :saexpr a :assignment)
+  (== (saeval '(1 / (x / y)) a)
+      (saeval '(y / x) a)))
 
 ;; 5. (0 ^ x) = 0, for saexpr x
 
-(property ...)
+;; This is not valid as if x < 0 then we get the LHS is *er* while the RHS is 0.
+;; to make it valid we need a precondition that x is not an error and x >= 0.
+
+; TODO: this is also broken
+(property (x :saexpr a :assignment)
+  (=> (or (erp (saeval x a))
+        (>= (saeval x a) 0))
+       (== (saeval '(0 ^ x) a) 0)))
 
 ;; 6. (x ^ ((2 * y) / y)) = (x ^ 2), for saexpr's x, y
 
-(property ...)
+;; This is not valid as we need y != 0.
+
+(property (x :saexpr y :saexpr a :assignment)
+  (=> (not (zerop (saeval y a)))
+       (== (saeval '(x ^ ((2 * y) / y)) a) (saeval '(x ^ 2) a))))
 
 ;; Extra credit 1 (30 points, all or nothing)
 
