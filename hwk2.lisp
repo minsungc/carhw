@@ -455,6 +455,13 @@
   (== (saeval '(1 / (x / y)) a)
       (saeval '(y / x) a)))
 
+;; Michelle: I required proofs and testing and it seems to succeed, I don't know why it occassionally gives errors tho :/
+(property (x :saexpr y :saexpr a :assignment)
+  :proofs? t
+  :testing? t
+  (== (saeval '(1 / (x / y)) a)
+      (saeval '(y / x) a)))
+
 ;; 5. (0 ^ x) = 0, for saexpr x
 
 ;; This is not valid as if x < 0 then we get the LHS is *er* while the RHS is 0.
@@ -465,6 +472,14 @@
   (=> (or (erp (saeval x a))
         (>= (saeval x a) 0))
        (== (saeval '(0 ^ x) a) 0)))
+
+;; Michelle: This passes: 
+
+(property (x :saexpr a :assignment)
+  (=> (or (erp (saeval x a))
+	  (> (saeval x a) 0))
+      (== (saeval '(0 ^ (saeval x a)) a)
+	  0)))
 
 ;; 6. (x ^ ((2 * y) / y)) = (x ^ 2), for saexpr's x, y
 

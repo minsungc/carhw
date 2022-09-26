@@ -422,6 +422,11 @@
 ;; 2. (x - y) = (x + (- y)), for *any* vars x, y
 ;; Hint: the backquote/comma combo can be your friend.
 
+;; Michelle's version: Either work and seem fine tho? 
+(property (x :var y :var a :assignment)
+  (== (saeval '((saeval x a) - (saeval y a)) a)
+      (saeval '((saeval x a) + (- (saeval y a))) a)))
+      
 (property (x :var y :var a :assignment)
   (== (saeval '(x - y) a)
       (saeval '(x + (- y)) a)))
@@ -432,6 +437,11 @@
 (property (x :saexpr y :saexpr z :saexpr a :assignment)
   (== (saeval (x * (y + z)) a)
       (saeval ((x * y) + (x * z)) a)))
+      
+;; Michelle: The above property fails for me. The following passes tho, 
+(property (x :saexpr y :saexpr z :saexpr a :assignment)
+  (== (saeval '(x * (y + z)) a)
+      (saeval '((x * y) + (x * z)) a)))
 
 ;; Notice that the following is true because error = error.
 
@@ -445,6 +455,13 @@
   (== (saeval '(1 / (x / y)) a)
       (saeval '(y / x) a)))
 
+;; Michelle: I required proofs and testing and it seems to succeed, I don't know why it occassionally gives errors tho :/
+(property (x :saexpr y :saexpr a :assignment)
+  :proofs? t
+  :testing? t
+  (== (saeval '(1 / (x / y)) a)
+      (saeval '(y / x) a)))
+
 ;; 5. (0 ^ x) = 0, for saexpr x
 
 ;; This is not valid as if x < 0 then we get the LHS is *er* while the RHS is 0.
@@ -455,6 +472,9 @@
   (=> (or (erp (saeval x a))
         (>= (saeval x a) 0))
        (== (saeval '(0 ^ x) a) 0)))
+
+;; Michelle: We can change the definition of saeval to not produce *er* 
+
 
 ;; 6. (x ^ ((2 * y) / y)) = (x ^ 2), for saexpr's x, y
 
