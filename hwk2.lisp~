@@ -422,11 +422,6 @@
 ;; 2. (x - y) = (x + (- y)), for *any* vars x, y
 ;; Hint: the backquote/comma combo can be your friend.
 
-;; Michelle's version: Either work and seem fine tho? 
-(property (x :var y :var a :assignment)
-  (== (saeval '((saeval x a) - (saeval y a)) a)
-      (saeval '((saeval x a) + (- (saeval y a))) a)))
-      
 (property (x :var y :var a :assignment)
   (== (saeval '(x - y) a)
       (saeval '(x + (- y)) a)))
@@ -437,11 +432,6 @@
 (property (x :saexpr y :saexpr z :saexpr a :assignment)
   (== (saeval (x * (y + z)) a)
       (saeval ((x * y) + (x * z)) a)))
-      
-;; Michelle: The above property fails for me. The following passes tho, 
-(property (x :saexpr y :saexpr z :saexpr a :assignment)
-  (== (saeval '(x * (y + z)) a)
-      (saeval '((x * y) + (x * z)) a)))
 
 ;; Notice that the following is true because error = error.
 
