@@ -419,8 +419,8 @@
 ;; Note! x, y, z are saexpr's not vars!
       
 (property (x :saexpr y :saexpr z :saexpr a :assignment)
-  (== (saeval '(x * (y + z)) a)
-      (saeval '((x * y) + (x * z)) a)))
+  (== (saeval '((saeval x a) * ((saeval y a) + (saeval z a))) a)
+      (saeval '(((saeval x a) * (saeval y a)) + ((saeval x a) * (saeval z a))) a)))
 
 ;; Notice that the following is true because error = error.
 
@@ -429,10 +429,9 @@
 
 ;; 4. (1 / (x / y)) = (y / x), for saexpr's x, y,
 
-; TODO: this gives errors sometimes
 (property (x :saexpr y :saexpr a :assignment)
   (== (saeval '(1 / ((saeval x a) / (saeval y a))) a)
-      (saeval '((saeval x a) / (saeval y a)) a))))
+      (saeval '((saeval x a) / (saeval y a)) a)))
 
 ;; 5. (0 ^ x) = 0, for saexpr x
 
