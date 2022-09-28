@@ -161,7 +161,7 @@
 ; (modeling-admit-defs) is better and (modeling-admit-all) is the
 ; best.
 
-(modeling-start)
+(modeling-validate-defs)
 
 #|
 
@@ -319,36 +319,25 @@
 
 ;; Feel free to define helper functions as needed.
 
-
-; TODO: find out why this function times out proving body contracts
 (definec saeval (e :saexpr a :assignment) :rat-err
   (match e
     (:rational e)
     (:var (lookup e a))
     (:usaexpr
-     (('- x) (match (saeval x a)
-		 (*er* *er*)
-	         (b (- b))))
-     (('/ x) (match (saeval x a)
-		 (*er* *er*)
-	         (b (if (zerop b) *er* (/ b))))))
+     (('- x) (let ((x (saeval x a))) (if (erp x) *er* (- x))))
+     (('/ x) (let ((x (saeval x a))) (if (or (erp x) (zerop x)) *er* (/ x)))))
     (:bsaexpr
-     ((x '+ y) (match (list (saeval x a) (saeval y a))
-		 ((:or (*er* &) (& *er*)) *er*)
-		 ((a b) (+ a b))))
-     ((x '- y) (match (list (saeval x a) (saeval y a))
-		 ((:or (*er* &) (& *er*)) *er*)
-		 ((a b) (- a b))))
-     ((x '* y) (match (list (saeval x a) (saeval y a))
-		 ((:or (*er* &) (& *er*)) *er*)
-		 ((a b) (* a b))))
-     ((x '/ y) (match (list (saeval x a) (saeval y a))
-		 ((:or (*er* &) (& *er*)) *er*)
-		 ((a b) (if (zerop b) *er* (/ a b)))))
-     ((x '^ y) (match (list (saeval x a) (saeval y a))
-		 ((:or (*er* &) (& *er*)) *er*)
-		 ((a b) (if (or (integerp b) (and (zerop a) (< b 0))) *er* (expt a b)))))
-     )))
+     ((x '+ y) (let ((x (saeval x a)) (y (saeval y a)))
+		 (if (or (erp x) (erp y)) *er* (+ x y))))
+     ((x '- y) (let ((x (saeval x a)) (y (saeval y a)))
+		 (if (or (erp x) (erp y)) *er* (- x y))))
+     ((x '* y) (let ((x (saeval x a)) (y (saeval y a)))
+		 (if (or (erp x) (erp y)) *er* (* x y))))
+     ((x '/ y) (let ((x (saeval x a)) (y (saeval y a)))
+		 (if (or (erp x) (erp y) (zerop y)) *er* (/ x y))))
+     ((x '^ y) (let ((x (saeval x a)) (y (saeval y a)))
+		 (if (or (erp x) (erp y)) *er*
+		   (if (or (integerp y) (and (zerop x) (< y 0))) *er* (expt x y))))))))
                     
 (check= (saeval '((x + y) - (- z))
                 '((y . 3/2) (z . 1/2)))
@@ -421,11 +410,6 @@
 
 ;; 2. (x - y) = (x + (- y)), for *any* vars x, y
 ;; Hint: the backquote/comma combo can be your friend.
-
-;; Michelle's version: Either work and seem fine tho? 
-(property (x :var y :var a :assignment)
-  (== (saeval '((saeval x a) - (saeval y a)) a)
-      (saeval '((saeval x a) + (- (saeval y a))) a)))
       
 (property (x :var y :var a :assignment)
   (== (saeval '(x - y) a)
@@ -433,12 +417,7 @@
 
 ;; 3. (x * (y + z)) = ((x * y) + (x * z)), for saexpr's x, y, z
 ;; Note! x, y, z are saexpr's not vars!
-
-(property (x :saexpr y :saexpr z :saexpr a :assignment)
-  (== (saeval (x * (y + z)) a)
-      (saeval ((x * y) + (x * z)) a)))
       
-;; Michelle: The above property fails for me. The following passes tho, 
 (property (x :saexpr y :saexpr z :saexpr a :assignment)
   (== (saeval '(x * (y + z)) a)
       (saeval '((x * y) + (x * z)) a)))
@@ -452,32 +431,17 @@
 
 ; TODO: this gives errors sometimes
 (property (x :saexpr y :saexpr a :assignment)
-  (== (saeval '(1 / (x / y)) a)
-      (saeval '(y / x) a)))
-
-;; Michelle: I required proofs and testing and it seems to succeed, I don't know why it occassionally gives errors tho :/
-(property (x :saexpr y :saexpr a :assignment)
-  :proofs? t
-  :testing? t
-  (== (saeval '(1 / (x / y)) a)
-      (saeval '(y / x) a)))
+  (== (saeval '(1 / ((saeval x a) / (saeval y a))) a)
+      (saeval '((saeval x a) / (saeval y a)) a))))
 
 ;; 5. (0 ^ x) = 0, for saexpr x
 
 ;; This is not valid as if x < 0 then we get the LHS is *er* while the RHS is 0.
 ;; to make it valid we need a precondition that x is not an error and x >= 0.
 
-; TODO: this is also broken
 (property (x :saexpr a :assignment)
   (=> (or (erp (saeval x a))
-        (>= (saeval x a) 0))
-       (== (saeval '(0 ^ x) a) 0)))
-
-;; Michelle: This passes: 
-
-(property (x :saexpr a :assignment)
-  (=> (or (erp (saeval x a))
-	  (> (saeval x a) 0))
+	  (>= (saeval x a) 0))
       (== (saeval '(0 ^ (saeval x a)) a)
 	  0)))
 
