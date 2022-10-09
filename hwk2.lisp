@@ -16,7 +16,6 @@
  The group members are:
  ... Minsung Cho, Michelle Thalakottur
 
-|#
 
 #|
 
