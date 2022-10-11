@@ -156,45 +156,10 @@ Q1. Consider the following definition
 
 ; Q1d
 
-#|
-; Silly properties
-(property stupid-list (y :tl)
-  (implies (consp y)
-	   (== (app (rev (cdr y)) (list (car y)) )
-	       (rev (app (list (car y)) (cdr y))))))
-(property rev-of-car (L :tl)
-  (implies (consp L)
-	   (== (rev L) (app (rev (cdr L)) (list (car L))))))
-(property bad-app-y-rec (y :tl)
-  (implies (consp y)
-	   (== (bad-app nil y nil)
-	       (bad-app nil (cdr y) (list (car y))))))
-(property rev-in-bad-app (y :tl)
-  (== (bad-app nil y nil) (bad-app nil nil (rev y))))
-|#
-
-
-(property (y :tl)
-  (=> (and (consp y) (endp (cdr y)))
-      (== (bad-app nil y nil)
-	  (list (car y)))))
-(property (y :tl)
-  (=> (endp y)
-      (== (bad-app nil y nil)
-	  (list))))
-
-; Induction depth limit is set to 1, which is why it recurses once
-; and then gets stuck. I don't know what beyond the following property to 
-; give it so that it doesn't 
-
-
-; Did not do bad-app nil y nil directly since it will recurse on a non-empty
-; accumulator in the third case either ways. 
 (definec helpr (y :tl acc :tl) :tl
 	 (match y
 	   (nil acc)
 	   ((f . r) (helpr r (cons f acc)))))
-
   
 (property use1 (y :tl acc :tl) 
   (== (bad-app nil y acc)
@@ -206,13 +171,13 @@ Q1. Consider the following definition
    (app (rev x) acc))
   :hints (("goal" :induct (helpr x acc))))
 
-
-; minsung: TODO. End goal of what we want to prove.
 (property (x :tl y :tl)
-   (match y
-      (nil (== (bad-app x y nil) (rev x)))	
-      (& (== (bad-app x y nil) (app (rev y) x)))))
-;   :hints (("goal" :induct (helpr x y))))
+    (if (endp x)
+	(== (bad-app x y nil)
+	    (rev y))
+        (== (bad-app x y nil)
+            (app (rev x) y))))
+
 
 ; Configuration: update as per instructions
 (modeling-admit-all)
