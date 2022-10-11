@@ -190,31 +190,29 @@ Q1. Consider the following definition
 
 ; Did not do bad-app nil y nil directly since it will recurse on a non-empty
 ; accumulator in the third case either ways. 
-(property (y :tl acc :tl)
-  (match y
-    (nil (== (bad-app nil y acc)
-	     acc))
-    ((f . nil) (== (bad-app nil y acc)
-		   (app (list f) acc)))
-    ((f . r)  (== (bad-app nil r (cons f acc))
-		  (app (rev r) (cons f acc)))))
-  :hints (("goal" :induct (tlp y))))
+(definec helpr (y :tl acc :tl) :tl
+	 (match y
+	   (nil acc)
+	   ((f . r) (helpr r (cons f acc)))))
+
   
-(property (y :tl acc :tl) 
+(property use1 (y :tl acc :tl) 
   (== (bad-app nil y acc)
-      (app (rev y) acc)))
+   (app (rev y) acc))
+  :hints (("goal" :induct (helpr y acc))))
 
-(property (x :tl acc :tl)
+(property use2 (x :tl acc :tl)
   (== (bad-app x nil acc)
-      (app (rev x) acc)))
+   (app (rev x) acc))
+  :hints (("goal" :induct (helpr x acc))))
 
-; End goal of what we want to prove.
+
+; minsung: TODO. End goal of what we want to prove.
 (property (x :tl y :tl)
-    (if (endp x)
-	(== (bad-app x y nil)
-	    (rev y))
-        (== (bad-app x y nil)
-            (app (rev x) y))))
+   (match y
+      (nil (== (bad-app x y nil) (rev x)))	
+      (& (== (bad-app x y nil) (app (rev y) x)))))
+;   :hints (("goal" :induct (helpr x y))))
 
 ; Configuration: update as per instructions
 (modeling-admit-all)
