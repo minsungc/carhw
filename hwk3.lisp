@@ -247,41 +247,32 @@ Q2. Consider the following definition.
 ; measure functions, as mentioned in Section 5.5.
 
 ; Q2b. Fill in the definition
-(definec m-ack (n :nat m :nat) :nat
-  :skip-tests t
+(definec m-ack (n :nat m :nat) :lex
   (match (list n m)
-    ((0 &) 0)
-    ((& 0) n)
-    (& (m-ack (1- n) (m-ack n (1- m))))))
+    ((0 &) (list 0 (1+ m)))
+    ((& 0) (list (1+ n) 1))
+    (& (list (1+ n) (1+ m)))))
 
+
+  
 ; The proof obligations for the termination proof of ack, using
 ; properties.  Make sure that ACL2s can prove all of these
 ; properties. 
 
 ; Q2c
-
-(property (n :nat m :nat)
-  :proofs? t
-  (=> (zp n)
-      (== (m-ack n m)
-	  0)))
    
 (property (n :nat m :nat)
   :proofs? t
-  (=> (and (zp m)
-	   (not (zp n)))
-      (< (m-ack (1- n) m)
-	 (m-ack n m))))
+  (implies (and (zerop m) (not (zerop n)))
+    (l< (m-ack (1- n) 1) (m-ack n m))))
 
-; does not work - my definition for the last case is probably wrong 
+; minsung: am 100% sure this is correct, but this is a question for PETE
 (property (n :nat m :nat)
   :proofs? t
-  :proof-timeout 10
-  (=> (and (not (zp n))
-	   (not (zp m))) 
-      (< (m-ack (1- n) (ack n (1- m)))
-	 (m-ack n m))))
-  
+  :debug? t
+  (implies (and (not (zerop n)) (not (zerop m)))
+	   (l< (m-ack (1- n) (m-ack n (1- m))) (m-ack n m))))
+
 ; Configuration: update as per instructions
 (modeling-start)
 
