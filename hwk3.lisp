@@ -118,7 +118,7 @@ Q1. Consider the following definition
 |#
 
 ; Define, m-bad-app, a measure function for bad-app.
-; Q1a. We are using the definition on page ...
+; Q1a. We are using the definition on page 130
 
 ; Note: fill in the ...'s above, as you can use the generalized
 ; measure functions, as mentioned in Section 5.5.
@@ -126,8 +126,8 @@ Q1. Consider the following definition
 ; Q1b. Fill in the definition
 (definec m-bad-app (x :tl y :tl acc :all) :nat
 	 (cond ((and (endp x) (endp y)) 0)
-	       ((endp x) (len y))
 	       ((endp y) (+ 1 (len x)))
+	       ((endp x) (len y))
 	       (t (+ 2 (len acc) (len x)))))
 
 ; The proof obligations for the termination proof of bad-app, using
@@ -156,6 +156,7 @@ Q1. Consider the following definition
 
 ; Q1d
 
+#|
 ; Silly properties
 (property stupid-list (y :tl)
   (implies (consp y)
@@ -170,6 +171,42 @@ Q1. Consider the following definition
 	       (bad-app nil (cdr y) (list (car y))))))
 (property rev-in-bad-app (y :tl)
   (== (bad-app nil y nil) (bad-app nil nil (rev y))))
+|#
+
+
+(property (y :tl)
+  (=> (and (consp y) (endp (cdr y)))
+      (== (bad-app nil y nil)
+	  (list (car y)))))
+(property (y :tl)
+  (=> (endp y)
+      (== (bad-app nil y nil)
+	  (list))))
+
+; Induction depth limit is set to 1, which is why it recurses once
+; and then gets stuck. I don't know what beyond the following property to 
+; give it so that it doesn't 
+
+
+; Did not do bad-app nil y nil directly since it will recurse on a non-empty
+; accumulator in the third case either ways. 
+(property (y :tl acc :tl)
+  (match y
+    (nil (== (bad-app nil y acc)
+	     acc))
+    ((f . nil) (== (bad-app nil y acc)
+		   (app (list f) acc)))
+    ((f . r)  (== (bad-app nil r (cons f acc))
+		  (app (rev r) (cons f acc)))))
+  :hints (("goal" :induct (tlp y))))
+  
+(property (y :tl acc :tl) 
+  (== (bad-app nil y acc)
+      (app (rev y) acc)))
+
+(property (x :tl acc :tl)
+  (== (bad-app x nil acc)
+      (app (rev x) acc)))
 
 ; End goal of what we want to prove.
 (property (x :tl y :tl)
@@ -180,7 +217,7 @@ Q1. Consider the following definition
             (app (rev x) y))))
 
 ; Configuration: update as per instructions
-(modeling-start)
+(modeling-admit-all)
 
 #|
 
@@ -192,8 +229,8 @@ Q2. Consider the following definition.
   :skip-tests t ; ack is slow, so skip testing
   (match (list n m)
     ((0 &) (1+ m))
-    ((& 0) (ack (1- n) 1))
-    (& (ack (1- n) (ack n (1- m))))))
+    ((& 0) (ack (1- n) 1)) ; n??
+    (& (ack (1- n) (ack n (1- m)))))) ;; (* n m)??
 
 #|
 
@@ -204,23 +241,46 @@ Q2. Consider the following definition.
 |#
 
 ; Define, m-ack, a measure function for ack.
-; Q2a. We are using the definition on page ...
+; Q2a. We are using the definition on page 120
 
 ; Note: fill in the ...'s above, as you can use the generalized
 ; measure functions, as mentioned in Section 5.5.
 
 ; Q2b. Fill in the definition
-(definec m-ack (...) ...
-  ...)
+(definec m-ack (n :nat m :nat) :nat
+  :skip-tests t
+  (match (list n m)
+    ((0 &) 0)
+    ((& 0) n)
+    (& (m-ack (1- n) (m-ack n (1- m))))))
 
 ; The proof obligations for the termination proof of ack, using
 ; properties.  Make sure that ACL2s can prove all of these
 ; properties. 
 
 ; Q2c
-(property ...)
-(property ...)
-(property ...)
+
+(property (n :nat m :nat)
+  :proofs? t
+  (=> (zp n)
+      (== (m-ack n m)
+	  0)))
+   
+(property (n :nat m :nat)
+  :proofs? t
+  (=> (and (zp m)
+	   (not (zp n)))
+      (< (m-ack (1- n) m)
+	 (m-ack n m))))
+
+; does not work - my definition for the last case is probably wrong 
+(property (n :nat m :nat)
+  :proofs? t
+  :proof-timeout 10
+  (=> (and (not (zp n))
+	   (not (zp m))) 
+      (< (m-ack (1- n) (ack n (1- m)))
+	 (m-ack n m))))
   
 ; Configuration: update as per instructions
 (modeling-start)
