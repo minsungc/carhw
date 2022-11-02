@@ -12,7 +12,7 @@
  your email submission is "CS 4820 HWK 3".
 
  The group members are:
- Minsung Cho, Michelle Thalakottur
+ ... Minsung Cho, Michelle Thalakottur
 
 |#
 
@@ -93,7 +93,7 @@
 
 |#
 
-(modeling-admit-all)
+(modeling-start)
 
 #|
 
@@ -104,8 +104,8 @@ Q1. Consider the following definition
 (definec bad-app (x :tl y :tl acc :tl) :tl
   (match (list x y)
     ((nil nil) acc)
-    ((& nil) (bad-app y x acc))
-    ((nil (f . r)) (bad-app x r (cons f acc)))
+    ((& nil) (bad-app y x acc))                ; len x     
+    ((nil (f . r)) (bad-app x r (cons f acc))) ; len y 
     (& (bad-app x nil (bad-app acc nil y)))))
 
 #|
@@ -118,17 +118,14 @@ Q1. Consider the following definition
 |#
 
 ; Define, m-bad-app, a measure function for bad-app.
-; Q1a. We are using the definition on page 130
+; Q1a. We are using the definition on page 129
 
 ; Note: fill in the ...'s above, as you can use the generalized
 ; measure functions, as mentioned in Section 5.5.
 
 ; Q1b. Fill in the definition
-(definec m-bad-app (x :tl y :tl acc :all) :nat
-	 (cond ((and (endp x) (endp y)) 0)
-	       ((endp y) (+ 1 (len x)))
-	       ((endp x) (len y))
-	       (t (+ 2 (len acc) (len x)))))
+(definec m-bad-app (x :tl y :tl) :nat
+  (+ (len x) (len y)))
 
 ; The proof obligations for the termination proof of bad-app, using
 ; properties.  Make sure that ACL2s can prove all of these
@@ -137,50 +134,21 @@ Q1. Consider the following definition
 ; can (and should) prove lemmas as needed. 
 
 ; Q1c
-(property (x :tl y :tl acc :tl)
-    (implies (and (consp x) (consp y))
-	     (< (m-bad-app x nil (bad-app acc nil y))
-		(m-bad-app x y acc))))
-(property (x :tl acc :tl)
-    (implies (consp x)
-     (< (m-bad-app nil x acc)
-	(m-bad-app x nil acc))))
-(property (y :tl acc :tl)
-    (implies (consp y)
-     (< (m-bad-app nil (cdr y) (cons (car y) acc))
-	(m-bad-app nil y acc))))
+(property ...)
+(property ...)
+(property ...)
 
 ; Relate bad-app to app.
 ; Fill in the ... part below. You can only use functions app, rev, if
 ; and endp. Make sure that ACL2s can prove the property.
 
 ; Q1d
-
-(definec helpr (y :tl acc :tl) :tl
-	 (match y
-	   (nil acc)
-	   ((f . r) (helpr r (cons f acc)))))
-  
-(property use1 (y :tl acc :tl) 
-  (== (bad-app nil y acc)
-   (app (rev y) acc))
-  :hints (("goal" :induct (helpr y acc))))
-
-(property use2 (x :tl acc :tl)
-  (== (bad-app x nil acc)
-   (app (rev x) acc))
-  :hints (("goal" :induct (helpr x acc))))
-
 (property (x :tl y :tl)
-    (if (endp x)
-	(== (bad-app x y nil)
-	    (rev y))
-        (== (bad-app x y nil)
-            (app (rev x) y))))
-
+  (== (bad-app x y nil)
+      ...))
 
 ; Configuration: update as per instructions
-(modeling-admit-all)
+(modeling-start)
 
 #|
 
@@ -192,8 +160,8 @@ Q2. Consider the following definition.
   :skip-tests t ; ack is slow, so skip testing
   (match (list n m)
     ((0 &) (1+ m))
-    ((& 0) (ack (1- n) 1)) 
-    (& (ack (1- n) (ack n (1- m)))))) 
+    ((& 0) (ack (1- n) 1))
+    (& (ack (1- n) (ack n (1- m))))))
 
 #|
 
@@ -204,44 +172,26 @@ Q2. Consider the following definition.
 |#
 
 ; Define, m-ack, a measure function for ack.
-; Q2a. We are using the definition on page 120
+; Q2a. We are using the definition on page ...
 
 ; Note: fill in the ...'s above, as you can use the generalized
 ; measure functions, as mentioned in Section 5.5.
 
 ; Q2b. Fill in the definition
-(definec m-ack (n :nat m :lex) :lex
-  ; the key idea is to relax the second argument so that properties typecheck.
-  (match (list n m)
-    ((0 &) (if (consp m) (list 0 (car m)) (list 0 (1+ m))))
-    ((& 0) (list (1+ n) 1))
-    (& (if (consp m) (list (1+ n) (1+ (car m))) (list (1+ n) (1+ m))))))
+(definec m-ack (...) ...
+  ...)
 
-
-  
 ; The proof obligations for the termination proof of ack, using
 ; properties.  Make sure that ACL2s can prove all of these
 ; properties. 
 
 ; Q2c
-   
-(property (n :nat m :nat)
-  :proofs? t
-  (implies (and (zerop m) (not (zerop n)))
-    (l< (m-ack (1- n) 1) (m-ack n m))))
-
-(property (n :nat m :nat z :nat)
-   (implies (and (not (zerop n)) (not (zerop m)))
-            (l< (m-ack (1- n) z) (m-ack n m))))
-
-(property (n :nat m :nat)
-  :proofs? t
-  :debug? t
-  (implies (and (not (zerop n)) (not (zerop m)))
-	   (l< (m-ack (1- n) (m-ack n (1- m))) (m-ack n m))))
-
+(property ...)
+(property ...)
+(property ...)
+  
 ; Configuration: update as per instructions
-(modeling-admit-all)
+(modeling-start)
 
 #|
 
@@ -298,16 +248,8 @@ Q3. Consider the following definitions.
 
 ; Q3b. Fill in the definition. This definition must be accepted by
 ; ACL2s. 
-(definec m-if-flat (x :tl) :nat
-  :function-contract-hints t
-  (match x
-    (:if-atom 1)
-    (('if a b c)
-     (match a
-       (:if-atom (+ (m-if-flat b) (m-if-flat c)))
-       (('if d e f) (+ (m-if-flat a) (m-if-flat b) (m-if-flat c)
-		       (m-if-flat d) (m-if-flat e) (m-if-flat f))))))) 
-		     
+(definec m-if-flat (...) ...
+  ...)
 
 ; The proof obligations for the termination proof of if-flat, using
 ; properties.  Make sure that ACL2s can prove all of these
