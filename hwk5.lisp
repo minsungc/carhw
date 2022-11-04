@@ -230,8 +230,41 @@
 
 |#
 
+(definec falsify-h-atom (e :if-atom a :if-assign) :if-assign
+  (match e
+    (:bool (if e nil a))
+    (& (if (lookup-var e a) nil (acons e nil a)))))
 
-...
+(definec falsify-h (e :norm-if-expr a :if-assign) :if-assign
+  (match e
+    (:if-atom (falsify-h-atom e a))
+    (('if x y z)
+     (if (assignedp x a)
+       (if (lookup-atom x a) (falsify-h y a) (falsify-h z a))
+       (or (falsify-h y (acons x t a))
+           (falsify-h z (acons x nil a)))))))
+
+(definec falsify-hp (e :norm-if-expr a :if-assign) :bool
+  (if (falsify-h e a) t nil))
+
+(definec falsify (e :if-expr) :if-assign
+  (falsify-h (if-flat e) nil))
+
+(definec falsifyp (e :if-expr) :bool
+  (if (falsify-h (if-flat e) nil) t nil))
+
+
+; minsung: what we eventually want to prove
+(property check-validp-is-complete (e :if-expr)
+  (implies (== (check-validp e) nil)
+	   (== (if-eval e (falsify e)) nil)))
+
+; minsung: and the property we want to show
+
+(defun-sk problem-1 (e)
+  (exists a
+    (implies (== (check-valid e) nil)
+	     (== (if-eval e a) nil))))
 
 ;; Now for some ACL2s systems programming.
 
