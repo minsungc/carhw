@@ -637,23 +637,25 @@ Is the above set of constraints consistent? If so, who has what job?
 
 (get-3x3-magic-square-var-pure 0)
 
-;; Prints nontrivial constraints
+;; Prints nontrivial constraints (excuse bad style)
 (defun 3x3-magic-square-vars-nontriv ()
   (cons 'and (loop for i below 9 append
 		   (loop for j from (1+ i) below 9 append
 		    (list`(not (= ,(get-3x3-magic-square-var-pure i) ,(get-3x3-magic-square-var-pure j))))))))
 			 
-  
+
 (3x3-magic-square-vars-nontriv)
 
-(print-solver)
 (z3-assert-fn (3x3-magic-square-var-specs 'S)
               (3x3-magic-square-row-col-constraints 'S))
-;; Something complains about a type error??
-(z3-assert-fn (3x3-magic-square-diag-sum-constraints 'S)
+(z3-assert-fn (3x3-magic-square-var-specs 'S)
+	      (3x3-magic-square-diag-sum-constraints 'S))
+(z3-assert-fn (3x3-magic-square-var-specs 'S)
 	      (3x3-magic-square-vars-nontriv))
 (z3-assert-fn (3x3-magic-square-var-specs 'S)
               (3x3-magic-square-vars-between-1-and-9))
+(check-sat)
+(solver-pop)
 
 (solver-reset)
 ;; ==========================
