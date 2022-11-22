@@ -625,6 +625,7 @@ Is the above set of constraints consistent? If so, who has what job?
 	       collect (get-3x3-magic-square-var x (- 2 x)))))
     (list `(= ,sum-var (+ . ,l-diag)) `(= ,sum-var (+ . ,r-diag)))))
 
+;; Prints diagonal constraints
 (defun 3x3-magic-square-diag-sum-constraints (sum-var)
   (let ((sums (3x3-magic-square-diag-sum-h sum-var)))
     `(and ,@sums)))
@@ -636,6 +637,7 @@ Is the above set of constraints consistent? If so, who has what job?
 
 (get-3x3-magic-square-var-pure 0)
 
+;; Prints nontrivial constraints
 (defun 3x3-magic-square-vars-nontriv ()
   (cons 'and (loop for i below 9 append
 		   (loop for j from (1+ i) below 9 append
@@ -647,6 +649,7 @@ Is the above set of constraints consistent? If so, who has what job?
 (print-solver)
 (z3-assert-fn (3x3-magic-square-var-specs 'S)
               (3x3-magic-square-row-col-constraints 'S))
+;; Something complains about a type error??
 (z3-assert-fn (3x3-magic-square-diag-sum-constraints 'S)
 	      (3x3-magic-square-vars-nontriv))
 (z3-assert-fn (3x3-magic-square-var-specs 'S)
