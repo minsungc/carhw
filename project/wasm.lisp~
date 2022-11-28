@@ -1,0 +1,12 @@
+;; WebAssembly 1.0 in ACL2
+;; Minsung Cho, Michelle Thalakottur
+
+;; We first define i32 and i64 types (no floats as ACL2 does not support them)
+
+(defdata i32 (range integer ((expt 2 32) < _)))
+(defdata i64 (range integer ((expt 2 64) < _)))
+
+
+;; and the arithmetic operations according to wasm spec.
+
+
