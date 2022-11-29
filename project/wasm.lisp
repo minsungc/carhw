@@ -3,8 +3,8 @@
 
 ;; We first define i32 and i64 types (no floats as ACL2 does not support them)
 
-(defdata i32 (range integer (_ < (expt 2 32))))
-(defdata i64 (range integer (_ < (expt 2 64))))
+(defdata i32 (range integer (0 <= _ < (expt 2 32))))
+(defdata i64 (range integer (0 <= _ < (expt 2 64))))
 
 ;; we can define instructions as either:
 
@@ -14,19 +14,19 @@
 
 ;; unary operations on 32-bit nums,
   
-(defdata i32unop (enum '(clz ctz popcnt)))
+(defdata i32unop (enum '(clz32 ctz32 popcnt32)))
 
 ;; unary operations on 64-bit nums,
 
-(defdata i64unop (enum '(clz ctz popcnt)))
+(defdata i64unop (enum '(clz64 ctz64 popcnt64)))
 
 ;; binary operations on 32-bit nums,
 
-(defdata i32binop (enum '(add sub mul div_u div_s rem_u rem_s and or xor shl shr_u shr_s rotl rotr)))
+(defdata i32binop (enum '(add32 sub32 mul32 div_u32 rem_u32)))
 
 ;; binary operations on 64-bit nums,
 
-(defdata i64binop (enum '(add sub mul div_u div_s rem_u rem_s and or xor shl shr_u shr_s rotl rotr)))
+(defdata i64binop (enum '(add64 sub64 mul64 div_u64 rem_u64)))
 
 ;; or a nop keyword (specifying no operation).
 
@@ -53,70 +53,60 @@ We want to define helper functions for wasm-eval, our evaluator. these will:
 3. throw an exception which will be handled by wasm-eval-h.
 
 to do the either-or we define the type wasm-eval-h-out, 
-which is a sum type of either an exception String or a wasm-program stack pair.
+which is a sum type of either an exception String or a program stack.
 |#
 
-(defdata wasm-eval-h-out (oneof String (list wasm-program stack)))
+(defdata wasm-eval-h-out (oneof String stack))
 
 (definec wasm-eval-h-i32unop (i :i32unop s :stack) :wasm-eval-h-out
   (let ((x (car s)))
     (if (not x) "not enough variables declared to do i32unop!"
       (match i
-        ('clz "TODO")
-        ('ctz "TODO")
-        ('popcnt "TODO")))))
+        ('clz32 "TODO")
+        ('ctz32 "TODO")
+        ('popcnt32 "TODO")))))
 
 (definec wasm-eval-h-i64unop (i :i64unop s :stack) :wasm-eval-h-out
   (let ((x (car s)))
     (if (not x) "not enough variables declared to do i64unop!"
       (match i
-        ('clz "TODO")
-        ('ctz "TODO")
-        ('popcnt "TODO")))))
-
-(definec wasm-eval-h-i64binop (i :i64binop s :stack) :wasm-eval-h-out
-  (let ((x (car s))
-        (y (cadr s)))
-    (if (or (not x) (not y))
-      "not enough variables declared to do i64binop!"
-      (match i
-	('add "TODO")
-	('sub "TODO")
-	('mul "TODO")
-	('div_u "TODO")
-	('div_s "TODO")
-	('rem_u "TODO")
-	('rem_s "TODO")
-	('and "TODO")
-	('or "TODO")
-	('xor "TODO")
-	('shl "TODO")
-	('shr_u "TODO")
-	('shr_s "TODO")
-	('rotl "TODO")
-	('rotr "TODO")))))
+        ('clz64 "TODO")
+        ('ctz64 "TODO")
+        ('popcnt64 "TODO")))))
 
 (definec wasm-eval-h-i32binop (i :i32binop s :stack) :wasm-eval-h-out
   (let ((x (car s))
         (y (cadr s)))
     (if (or (not x) (not y))
       "not enough variables declared to do i32binop!"
+      (if (and (i32p x) (i32p y))
       (match i
-	('add "TODO")
-	('sub "TODO")
-	('mul "TODO")
-	('div_u "TODO")
-	('div_s "TODO")
-	('rem_u "TODO")
-	('rem_s "TODO")
-	('and "TODO")
-	('or "TODO")
-	('xor "TODO")
-	('shl "TODO")
-	('shr_u "TODO")
-	('shr_s "TODO")
-	('rotl "TODO")
-	('rotr "TODO")))))
+	('add32 (cons (rem (+ x y) (expt 2 32)) (cddr s)))
+	('sub32 (cons (rem (+ (- x y) (expt 2 32)) (expt 2 32)) (cddr s)))
+	('mul32 (cons (rem (* x y) (expt 2 32))(cddr s)))
+	('div_u32 (if (zerop y) "div by 0 error" (cons (truncate x y) (cddr s))))
+	('rem_u32 (if (zerop y) "rem by 0 error" (cons (rem x y) (cddr s))))
+        ) "not i32 inputs!"))))
+
+(definec wasm-eval-h-i64binop (i :i64binop s :stack) :wasm-eval-h-out
+  (let ((x (car s))
+        (y (cadr s)))
+    (if (or (not x) (not y))
+      "not enough variables declared to do i64binop!"
+      (if (and (i64p x) (i64p y))
+      (match i
+	('add64 (cons (rem (+ x y) (expt 2 64)) (cddr s)))
+	('sub64 (cons (rem (+ (- x y) (expt 2 64)) (expt 2 64)) (cddr s)))
+	('mul64 (cons (rem (* x y) (expt 2 64))(cddr s)))
+	('div_u64 (if (zerop y) "div by 0 error" (cons (truncate x y) (cddr s))))
+	('rem_u64 (if (zerop y) "rem by 0 error" (cons (rem x y) (cddr s))))
+        ) "not i64 inputs!"))))
+
+(property (s :stack)
+  (implies (not (equal s nil)) (val-or-errorp (car s))))
+
+(property (s :string)
+  (val-or-errorp s))
 
 (definec wasm-eval-h (p :wasm-program s :stack) :val-or-error
   (match p
@@ -127,17 +117,18 @@ which is a sum type of either an exception String or a wasm-program stack pair.
 	       (:const (wasm-eval-h r (cons f s)))
 	       (:i32unop
 		(let ((x (wasm-eval-h-i32unop f s)))
-		  (if (Stringp x) x (wasm-eval-h r (cadr x)))))
+		  (if (Stringp x) x (wasm-eval-h r x))))
 	       (:i64unop
 		(let ((x (wasm-eval-h-i64unop f s)))
-		  (if (Stringp x) x (wasm-eval-h r (cadr x)))))
+		  (if (Stringp x) x (wasm-eval-h r x))))
 	       (:i32binop
 		(let ((x (wasm-eval-h-i32binop f s)))
-		  (if (Stringp x) x (wasm-eval-h r (cadr x)))))
+		  (if (Stringp x) x (wasm-eval-h r x))))
 	       (:i64binop
 		(let ((x (wasm-eval-h-i64binop f s)))
-		  (if (Stringp x) x (wasm-eval-h r (cadr x)))))
-	       (:nop (wasm-eval-h r s))))))
+		  (if (Stringp x) x (wasm-eval-h r x))))
+	       (:nop (wasm-eval-h r s)))))
+  :timeout 180)
 
 (definec wasm-eval (p :wasm-program) :val-or-error
   (wasm-eval-h p nil))
