@@ -93,21 +93,25 @@ which is a sum type of either an exception String or a program stack.
 (defdata wasm-eval-h-out (oneof String stack))
 
 
+; returns a bit string of the integer passed in
 (definec bits (x :int b :tl) :tl
   (if (> x 1)
-      (append b)
-  )
+      (bits (truncate x 2) (append (list (rem x 2)) b))
+      (append (list x) b)  
+  ))
 
 
 (definec wasm-eval-h-i32unop (i :i32unop s :stack) :wasm-eval-h-out
-  (let ((x (car s)))
+  (let ((x (car s))
+	;; (b (bits x nil))
+	)
     (if (not x) "not enough variables declared to do i32unop!"
       (match i
-	('eqz32 (cons (zerop x) (cdr s))) 
+	('eqz32 (cons (if (zerop x) 1 0) (cdr s))) 
         ('clz32 "TODO")
         ('ctz32 "TODO")
         ('popcnt32 "TODO")
-	('wrap64 (cons (i64 x) (cdr s)))))))
+	('wrap64 (cons x (cdr s)))))))
 
 
 (definec wasm-eval-h-i64unop (i :i64unop s :stack) :wasm-eval-h-out
