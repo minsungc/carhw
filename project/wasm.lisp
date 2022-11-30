@@ -2,6 +2,7 @@
 ;; Minsung Cho, Michelle Thalakottur
 
 ;; We first define i32 and i64 types (no floats as ACL2 does not support them)
+;; Instruction execution semantics can be found here: https://webassembly.github.io/JS-BigInt-integration/core/exec/numerics.html
 
 (defdata i32 (range integer (0 <= _ < (expt 2 32))))
 (defdata i64 (range integer (0 <= _ < (expt 2 64))))
@@ -12,13 +13,42 @@
 
 (defdata const (oneof i32 i64))
 
+#| 
+These are the Unary Operations that we model: 
+I32Eqz, I32Clz, I32Ctz, I32Popcnt, I32WrapI64
+I64Eqz, I64Clz, I64Ctz, I64Popcnt, I64ExtendI32S, I64ExtendI32U
+
+The following unary operations are not supported since ACL2 does not support floating points:
+F32Abs, F32Neg, F32Ceil, F32Floor, F32Trunc, F32Nearest, F32Sqrt
+F64Abs, F64Neg, F64Ceil, F64Floor, F64Trunc, F64Nearest, F64Sqrt
+I32TruncF32S, I32TruncF32U, I32TruncF64S, I32TruncF64U
+I64TruncF32S, I64TruncF32U, I64TruncF64S, I64TruncF64U
+F32ConvertI32S, F32ConvertI32U, F32ConvertI64S, F32ConvertI64U, F32DemoteF64
+F64ConvertI32S, F64ConvertI32U, F64ConvertI64S, F64ConvertI64U, F64PromoteF32
+I32ReinterpretF32, I64ReinterpretF64, F32ReinterpretI32, F64ReinterpretI64
+|#
+
 ;; unary operations on 32-bit nums,
   
-(defdata i32unop (enum '(clz32 ctz32 popcnt32)))
+(defdata i32unop (enum '(eqz32 clz32 ctz32 popcnt32 wrap64)))
 
 ;; unary operations on 64-bit nums,
 
-(defdata i64unop (enum '(clz64 ctz64 popcnt64)))
+(defdata i64unop (enum '(eqz64 clz64 ctz64 popcnt64 extend_s32 extend_u32)))
+
+#| 
+These are the Binary Operations that we model: 
+- I32Eq, I32Ne, I32LtS, I32LtU, I32GtS, I32GtU, I32LeS, I32LeU, I32GeS, I32GeU
+  I32Add, I32Sub, I32Mul, I32DivS, I32DivU, I32RemS, I32RemU, I32And, I32Or, I32Xor, I32Shl, I32ShrS, I32ShrU, I32Rotl, I32Rotr
+- I64Eq, I64Ne, I64LtS, I64LtU, I64GtS, I64GtU, I64LeS, I64LeU, I64GeS, I64GeU
+  I64Add, I64Sub, I64Mul, I64DivS, I64DivU, I64RemS, I64RemU, I64And, I64Or, I64Xor, I64Shl, I64ShrS, I64ShrU, I64Rotl, I64Rotr
+
+The following binary operations are not supported since ACL2 does not support floating points:
+F32Eq, F32Ne, F32Lt, F32Gt, F32Le, F32Ge
+F64Eq, F64Ne, F64Lt, F64Gt, F64Le, F64Ge
+F32Add, F32Sub, F32Mul, F32Div, F32Min, F32Max, F32Copysign
+F64Add, F64Sub, F64Mul, F64Div, F64Min, F64Max, F64Copysign
+|#
 
 ;; binary operations on 32-bit nums,
 
@@ -58,22 +88,35 @@ which is a sum type of either an exception String or a program stack.
 
 (defdata wasm-eval-h-out (oneof String stack))
 
+
+(definec bits (x :int b :tl) :tl
+  (if (> x 1)
+      (append b)
+  )
+
+
 (definec wasm-eval-h-i32unop (i :i32unop s :stack) :wasm-eval-h-out
   (let ((x (car s)))
     (if (not x) "not enough variables declared to do i32unop!"
       (match i
+	('eqz32 (cons (zerop x) (cdr s))) 
         ('clz32 "TODO")
         ('ctz32 "TODO")
-        ('popcnt32 "TODO")))))
+        ('popcnt32 "TODO")
+	('wrap64 (cons (i64 x) (cdr s)))))))
+
 
 (definec wasm-eval-h-i64unop (i :i64unop s :stack) :wasm-eval-h-out
   (let ((x (car s)))
     (if (not x) "not enough variables declared to do i64unop!"
       (match i
+	('eqz64 (cons (zerop x) (cdr s)))
         ('clz64 "TODO")
         ('ctz64 "TODO")
-        ('popcnt64 "TODO")))))
-
+        ('popcnt64 "TODO")
+	('extend_s32 (cons (i32 x) (cdr s))) 
+	('extend_u32 (cons (i32 x) (cdr s)))))))
+  
 (definec wasm-eval-h-i32binop (i :i32binop s :stack) :wasm-eval-h-out
   (let ((x (car s))
         (y (cadr s)))
@@ -128,7 +171,7 @@ which is a sum type of either an exception String or a program stack.
 		(let ((x (wasm-eval-h-i64binop f s)))
 		  (if (Stringp x) x (wasm-eval-h r x))))
 	       (:nop (wasm-eval-h r s)))))
-  :timeout 180)
+  :timeout 300)
 
 (definec wasm-eval (p :wasm-program) :val-or-error
   (wasm-eval-h p nil))
