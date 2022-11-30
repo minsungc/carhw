@@ -16,7 +16,7 @@
 #| 
 These are the Unary Operations that we model: 
 I32Eqz, I32Clz, I32Ctz, I32Popcnt, I32WrapI64
-I64Eqz, I64Clz, I64Ctz, I64Popcnt, I64ExtendI32S, I64ExtendI32U
+I64Eqz, I64Clz, I64Ctz, I64Popcnt, I64ExtendI32S, I64ExtendI32U 
 
 The following unary operations are not supported since ACL2 does not support floating points:
 F32Abs, F32Neg, F32Ceil, F32Floor, F32Trunc, F32Nearest, F32Sqrt
@@ -70,9 +70,17 @@ F64Add, F64Sub, F64Mul, F64Div, F64Min, F64Max, F64Copysign
 
 (defdata instr (oneof const i32unop i64unop i32binop i64binop nop))
 
-;; we can represent a wasm program as a list of wasm instructions. since wasm is stack-based, we also define a stack.
 
-(defdata wasm-program (listof instr))
+;; we can represent a wasm function as a list of wasm instructions.
+;; right now, we only support functions that take in no parameters 
+
+(defdata wasm-function (listof instr))
+
+;; a wasm module is a list of wasm functions
+
+(defdata wasm-module (listof wasm-function))
+
+;; since wasm is stack-based, we also define a stack.
 
 (defdata stack (listof const))
 
@@ -92,39 +100,106 @@ which is a sum type of either an exception String or a program stack.
 
 (defdata wasm-eval-h-out (oneof String stack))
 
-
-; returns a bit string of the integer passed in
-(definec bits (x :int b :tl) :tl
+;; integer to bits as a tl 
+(definec int-to-bits-helper (x :int b :tl) :tl
   (if (> x 1)
       (bits (truncate x 2) (append (list (rem x 2)) b))
-      (append (list x) b)  
-  ))
+    (append (list x) b)))
+(definec int-to-bits (x :int) :tl
+  (int-to-bits-helper x nil))
+
+;; bits to integer 
+(definec bits-to-int-helper (bits :tl n :nat) :int
+  :skip-tests t
+  (if (== n 0)
+      1
+    (if (== 1 (car bits))
+	(+ (expt 2 n) (bits-to-int-helper (cdr bits) (- n 1)))
+        (bits-to-int-helper (cdr bits) (- n 1)))))
+(definec bits-to-int (bits :tl) :int
+  :skip-tests t
+  :skip-body-contractsp t
+  (bits-to-int-helper bits (- 1 (length bits))))
+
+
+(definec count-trailing-zeros-helper (bits :tl) :nat
+  (if (== 0 (car bits))
+      (+ 1 (count-trailing-bits-helper (cdr bits)))
+    0))
+
+(definec count-trailing-zeros (bits :tl) :nat
+  (count-trailing-zeros-helper (rev bits)))
+
+(definec count-non-zero-bits (bits :tl) :nat
+  (if (or (== 1 (car bits)) (== 0 (car bits)))
+      (+ (car bits) (count-non-zero-bits (cdr bits)))
+    0))
 
 
 (definec wasm-eval-h-i32unop (i :i32unop s :stack) :wasm-eval-h-out
-  (let ((x (car s))
-	;; (b (bits x nil))
-	)
-    (if (not x) "not enough variables declared to do i32unop!"
+  (let ((x (car s)))
+    (if (not (and (not x) (i32p x))) "not enough variables declared to do i32unop!"
       (match i
 	('eqz32 (cons (if (zerop x) 1 0) (cdr s))) 
-        ('clz32 "TODO")
-        ('ctz32 "TODO")
-        ('popcnt32 "TODO")
-	('wrap64 (cons x (cdr s)))))))
+	;; clz gives you the count of leading zeros 
+	('clz32 (cons (- 32 (length (int-to-bits x))) (cdr s)))
+	;; ctz gives you the count of trailing zero bits 
+	('ctz32 (cons (count-trailing-zeros (int-to-bits x)) (cdr s)))
+	;; popcnt returns the count of non-zero bits 
+	('popcnt32 (cons (count-non-zero-bits (int-to-bits x)) (cdr s)))
+	;; wrap (64, 32) = return x modulo 2^32
+	('wrap64 (cons (rem x (expt 2 32)) (cdr s)))))))
 
+
+;; invert all the bits
+(definec invert-bits (bits :tl) :tl
+  (if (consp bits)
+      (if (== 0 (car bits))
+	  (cons 1 (invert-bits (cdr bits)))
+	  (cons 0 (invert-bits (cdr bits))))
+      nil))
+
+;; this takes the reverse of bits as input 
+(definec twos-complement-helper (bits :tl carry :nat) :tl
+  (if (consp bits)
+      (if (== 0 (car bits)) ;; I should technically write this in match but i don't trust match 
+	  (if (== 0 carry)
+	      (append (twos-complement-helper (cdr bits) 0) '(0))
+	    (append (twos-complement-helper (cdr bits) 0) '(1)))
+	(if (== 0 carry)
+	    (append (twos-complement-helper (cdr bits) 0) '(1))
+          (append (twos-complement-helper (cdr bits) 1) '(0))))
+    nil))
+    
+;; invert all the bits and then add 1
+(definec twos-complement (bits :tl) :tl
+  (twos-complement-helper (rev (invert-bits bits)) 1))
+	
+
+;; if the value is between 0 and 2^31 then return the value
+;; else return the integer value of the twos complement of i
+(definec sign-interpretation-32 (i :i32) :i32
+  :skip-function-contractp t
+  (if (and (>= i 0) (< i (expt 2 31)))
+      i
+      (bits-to-int (twos-complement (int-to-bits i)))))
 
 (definec wasm-eval-h-i64unop (i :i64unop s :stack) :wasm-eval-h-out
   (let ((x (car s)))
-    (if (not x) "not enough variables declared to do i64unop!"
+    (if (not (and (not x) (i64p x))) "not enough variables declared to do i64unop!"
       (match i
-	('eqz64 (cons (zerop x) (cdr s)))
-        ('clz64 "TODO")
-        ('ctz64 "TODO")
-        ('popcnt64 "TODO")
-	('extend_s32 (cons (i32 x) (cdr s))) 
-	('extend_u32 (cons (i32 x) (cdr s)))))))
-  
+	('eqz64 (cons (if (zerop x) 1 0) (cdr s))) 
+	('clz64 (cons (- 64 (length (bits x nil))) (cdr s)))
+	('ctz64 (cons (count-trailing-zeros (bits x nil)) (cdr s)))
+	('popcnt64 (cons (count-non-zero-bits (bits x nil)) (cdr s)))
+	;; extend_s(32,64) 
+	;; let the j be the signed interpretation of x of size 32
+	;; return the two's complement of j relative to size 64	
+	('extend_s32 (cons (bits-to-int (twos-complement (int-to-bits (sign-interpretation-32 x)))) (cdr s)))
+	;; extend_u(32,64): return x
+	('extend_u32 (cons x (cdr s)))))))
+
+
 (definec wasm-eval-h-i32binop (i :i32binop s :stack) :wasm-eval-h-out
   (let ((x (car s))
         (y (cadr s)))
@@ -135,9 +210,34 @@ which is a sum type of either an exception String or a program stack.
 	('add32 (cons (rem (+ x y) (expt 2 32)) (cddr s)))
 	('sub32 (cons (rem (+ (- x y) (expt 2 32)) (expt 2 32)) (cddr s)))
 	('mul32 (cons (rem (* x y) (expt 2 32))(cddr s)))
+
 	('div_u32 (if (zerop y) "div by 0 error" (cons (truncate x y) (cddr s))))
 	('rem_u32 (if (zerop y) "rem by 0 error" (cons (rem x y) (cddr s))))
-        ) "not i32 inputs!"))))
+	('div_s32 "TODO")
+	('rem_s32 "TODO")
+
+	('and32 "TODO")
+	('or32 "TODO")
+	('xor32 "TODO")
+
+	('shl32 "TODO")
+	('shr_u32 "TODO")
+	('shr_s32 "TODO")
+	('rotl32 "TODO")
+	('rotr3 "TODO")
+
+	('eq32 "TODO")
+	('ne32 "TODO")
+	('lt_s32 "TODO")
+	('lt_u32 "TODO")
+	('gt_u32 "TODO")
+	('gt_s32 "TODO")
+	('le_u32 "TODO")
+	('le_s32 "TODO")
+	('ge_u32 "TODO")
+	('ge_s32 "TODO")	
+
+	) "not i32 inputs!"))))
 
 (definec wasm-eval-h-i64binop (i :i64binop s :stack) :wasm-eval-h-out
   (let ((x (car s))
