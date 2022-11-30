@@ -52,11 +52,15 @@ F64Add, F64Sub, F64Mul, F64Div, F64Min, F64Max, F64Copysign
 
 ;; binary operations on 32-bit nums,
 
-(defdata i32binop (enum '(add32 sub32 mul32 div_u32 rem_u32)))
+(defdata i32binop (enum '(add32 sub32 mul32 div_u32 rem_u32 div_s32 rem_s32
+			  and32 or32 xor32 shl32 shr_u32 shr_s32 rotl32 rotr32
+			  eq32 ne32 lt_s32 lt_u32 gt_u32 gt_s32 le_u32 le_s32 ge_u32 ge_s32)))
 
 ;; binary operations on 64-bit nums,
 
-(defdata i64binop (enum '(add64 sub64 mul64 div_u64 rem_u64)))
+(defdata i64binop (enum '(add64 sub64 mul64 div_u64 rem_u64 div_s64 rem_s64
+			  and64 or64 xor64 shl64 shr_u64 shr_s64 rotl64 rotr64
+			  eq64 ne64 lt_s64 lt_u64 gt_u64 gt_s64 le_u64 le_s64 ge_u64 ge_s64)))
 
 ;; or a nop keyword (specifying no operation).
 
