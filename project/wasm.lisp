@@ -53,13 +53,13 @@ F64Add, F64Sub, F64Mul, F64Div, F64Min, F64Max, F64Copysign
 ;; binary operations on 32-bit nums,
 
 (defdata i32binop (enum '(add32 sub32 mul32 div_u32 rem_u32 div_s32 rem_s32
-			  and32 or32 xor32 shl32 shr_u32 shr_s32 rotl32 rotr32
+			  and32 or32 xor32
 			  eq32 ne32 lt_s32 lt_u32 gt_u32 gt_s32 le_u32 le_s32 ge_u32 ge_s32)))
 
 ;; binary operations on 64-bit nums,
 
 (defdata i64binop (enum '(add64 sub64 mul64 div_u64 rem_u64 div_s64 rem_s64
-			  and64 or64 xor64 shl64 shr_u64 shr_s64 rotl64 rotr64
+			  and64 or64 xor64
 			  eq64 ne64 lt_s64 lt_u64 gt_u64 gt_s64 le_u64 le_s64 ge_u64 ge_s64)))
 
 ;; or a nop keyword (specifying no operation).
@@ -100,38 +100,43 @@ which is a sum type of either an exception String or a program stack.
 
 (defdata wasm-eval-h-out (oneof String stack))
 
+(definec bit-listp (l :tl) :bool
+       (cond ((atom l) (eq l nil))
+             (t (and (bitp (car l))
+                     (bit-listp (cdr l))))))
+
 ;; integer to bits as a tl 
 (definec int-to-bits-helper (x :int b :tl) :tl
   (if (> x 1)
-      (bits (truncate x 2) (append (list (rem x 2)) b))
+      (int-to-bits-helper (truncate x 2) (append (list (rem x 2)) b))
     (append (list x) b)))
 (definec int-to-bits (x :int) :tl
   (int-to-bits-helper x nil))
 
 ;; bits to integer 
-(definec bits-to-int-helper (bits :tl n :nat) :int
-  :skip-tests t
-  (if (== n 0)
-      1
-    (if (== 1 (car bits))
-	(+ (expt 2 n) (bits-to-int-helper (cdr bits) (- n 1)))
-        (bits-to-int-helper (cdr bits) (- n 1)))))
-(definec bits-to-int (bits :tl) :int
-  :skip-tests t
+(definec bits-to-int-helper (bits :tl ct :nat ret :int) :int
+  :skip-admissibilityp t
   :skip-body-contractsp t
-  (bits-to-int-helper bits (- 1 (length bits))))
+  (if (or (not (bit-listp bits)) (> ct 64)) 0
+    (if (or (= ct 63) (not (nth ct bits))) ret
+      (bits-to-int-helper bits (+ ct 1) (+ (* (nth ct bits) (expt 2 ct)) ret)))))
+
+(definec bits-to-int (bits :tl) :int
+  (bits-to-int-helper (rev bits) 0 0))
 
 
 (definec count-trailing-zeros-helper (bits :tl) :nat
-  (if (== 0 (car bits))
-      (+ 1 (count-trailing-bits-helper (cdr bits)))
-    0))
+  :skip-admissibilityp t
+  (if (not (bit-listp bits)) 0 
+  (match bits
+    (nil 0)
+    ((f . r) (if (zerop f) (+ 1 (count-trailing-zeros r)) 0)))))
 
 (definec count-trailing-zeros (bits :tl) :nat
   (count-trailing-zeros-helper (rev bits)))
 
 (definec count-non-zero-bits (bits :tl) :nat
-  (if (or (== 1 (car bits)) (== 0 (car bits)))
+  (if (or (= 1 (car bits)) (= 0 (car bits)))
       (+ (car bits) (count-non-zero-bits (cdr bits)))
     0))
 
@@ -189,15 +194,43 @@ which is a sum type of either an exception String or a program stack.
     (if (not (and (not x) (i64p x))) "not enough variables declared to do i64unop!"
       (match i
 	('eqz64 (cons (if (zerop x) 1 0) (cdr s))) 
-	('clz64 (cons (- 64 (length (bits x nil))) (cdr s)))
-	('ctz64 (cons (count-trailing-zeros (bits x nil)) (cdr s)))
-	('popcnt64 (cons (count-non-zero-bits (bits x nil)) (cdr s)))
+	('clz64 (cons (- 64 (length (int-to-bits x))) (cdr s)))
+	('ctz64 (cons (count-trailing-zeros (int-to-bits x)) (cdr s)))
+	('popcnt64 (cons (count-non-zero-bits (int-to-bits x)) (cdr s)))
 	;; extend_s(32,64) 
 	;; let the j be the signed interpretation of x of size 32
 	;; return the two's complement of j relative to size 64	
 	('extend_s32 (cons (bits-to-int (twos-complement (int-to-bits (sign-interpretation-32 x)))) (cdr s)))
 	;; extend_u(32,64): return x
 	('extend_u32 (cons x (cdr s)))))))
+
+;; bitwise and
+(definec bit-and-h (x :tl y :tl ct :nat ret :tl) :int
+  (if (= 0 ct) (bits-to-int ret) (bit-and-h x y (- ct 1) (cons (and (nth ct x) (nth ct y)) ret))))
+
+(definec bits-and (x :i32 y :i32) :i32
+  :skip-function-contractp t
+  (let ((bx (rev (int-to-bits x)))
+        (by (rev (int-to-bits y))))
+    (bit-and-h bx by 31 nil)))
+
+(definec bit-or-h (x :tl y :tl ct :nat ret :tl) :int
+  (if (= 0 ct) (bits-to-int ret) (bit-and-h x y (- ct 1) (cons (or (nth ct x) (nth ct y)) ret))))
+
+(definec bits-or (x :i32 y :i32) :i32
+  :skip-function-contractp t
+  (let ((bx (rev (int-to-bits x)))
+        (by (rev (int-to-bits y))))
+   (bit-and-h bx by 31 nil)))
+
+(definec bit-xor-h (x :tl y :tl ct :nat ret :tl) :int
+  (if (= 0 ct) (bits-to-int ret) (bit-and-h x y (- ct 1) (cons (xor (nth ct x) (nth ct y)) ret))))
+
+(definec bits-xor (x :i32 y :i32) :i32
+  :skip-function-contractp t
+  (let ((bx (rev (int-to-bits x)))
+        (by (rev (int-to-bits y))))
+   (bit-and-h bx by 31 nil)))
 
 
 (definec wasm-eval-h-i32binop (i :i32binop s :stack) :wasm-eval-h-out
@@ -213,20 +246,19 @@ which is a sum type of either an exception String or a program stack.
 
 	('div_u32 (if (zerop y) "div by 0 error" (cons (truncate x y) (cddr s))))
 	('rem_u32 (if (zerop y) "rem by 0 error" (cons (rem x y) (cddr s))))
-	('div_s32 "TODO")
-	('rem_s32 "TODO")
+	('div_s32 (let ((sx (sign-interpretation-32 x))
+			 (sy (sign-interpretation-32 y)))
+		     (if (zerop sy) "div by 0 error"
+		       (if (= (truncate sx sy) (expt 2 31)) "signed div by 0 error" (cons (truncate sx sy) (cddr s))))))
+	('rem_s32 (let ((sx (sign-interpretation-32 x))
+			 (sy (sign-interpretation-32 y)))
+		     (if (zerop sy) "rem by 0 error" (cons (rem sx sy) (cddr s)))))
+	
+	('and32 (cons (bit-and x y) (cddr s)))
+	('or32 (cons (bit-or x y) (cddr s)))
+	('xor32 (cons (bit-xor x y) (cddr s)))
 
-	('and32 "TODO")
-	('or32 "TODO")
-	('xor32 "TODO")
-
-	('shl32 "TODO")
-	('shr_u32 "TODO")
-	('shr_s32 "TODO")
-	('rotl32 "TODO")
-	('rotr3 "TODO")
-
-	('eq32 "TODO")
+	('eq32 if )
 	('ne32 "TODO")
 	('lt_s32 "TODO")
 	('lt_u32 "TODO")
@@ -237,7 +269,8 @@ which is a sum type of either an exception String or a program stack.
 	('ge_u32 "TODO")
 	('ge_s32 "TODO")	
 
-	) "not i32 inputs!"))))
+	) "not i32 inputs!")))
+  :timeout 300)
 
 (definec wasm-eval-h-i64binop (i :i64binop s :stack) :wasm-eval-h-out
   (let ((x (car s))
