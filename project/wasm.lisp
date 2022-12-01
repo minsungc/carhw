@@ -208,7 +208,8 @@ which is a sum type of either an exception String or a program stack.
 ;; bitwise and
 (definec bits-and-h (bx :bitlist by :bitlist ret :bitlist) :int
   (match (list bx by)
-    ((:or (nil &) (& nil)) (bits-to-int ret))
+    ((nil &) (bits-to-int ret))
+    ((& nil) (bits-to-int ret))
     (((f . r) (g . s)) (bits-and-h r s (cons (* f g) ret)))))
 
 (definec bits-and (x :i64 y :i64) :int
@@ -394,3 +395,224 @@ which is a sum type of either an exception String or a program stack.
 
 (definec wasm-eval (p :wasm-function) :val-or-error
   (wasm-eval-h p nil))
+
+
+"pretty printing constants:
+for i32: (_ bv32 n)
+for i64; (_ bv64 n)"
+
+(defdata z3-stack (listof String))
+ 
+(definec pretty-print-const (c :const s :z3-stack) :z3-stack
+  (let ((n (if (i32p c)
+	 (string-append (string-append "(_ bv32 " (str::nat-to-dec-string c)) ")")
+       (string-append (string-append "(_ bv64 " (str::nat-to-dec-string c)) ")"))))
+    (append (list n) s)))
+	  
+(definec pretty-print-i32unop (c :i32unop s :z3-stack) :z3-stack
+  (match s
+    (nil '("this should not happen"))
+    ((f . r)    
+     (append 
+      (list (string-append 
+	     (match c
+	       ('eqz32 "(= 0 ") 
+	       ('clz32 "TODO")
+	       ('ctz32 "TODO")
+	       ('popcnt32 "TODO")
+	       ('wrap64 "TODO but actually"))
+	     f))
+      r))))
+
+(definec pretty-print-i64unop (c :i64unop s :z3-stack) :z3-stack 
+  (match s
+    (nil '("this should not happen"))
+    ((f . r)
+     (append
+      (list
+       (string-append 	
+	(match c
+	  ('eqz64 "=") 
+	  ('clz64 "bvclz")
+	  ('ctz64 "bvctz")
+	  ('popcnt64 "TODO")
+	  ('extend_s32 "TODO but actually")
+	  ('extend_u32 "TODO but actually"))
+	f))
+      r))))
+
+(definec pretty-print-i32binop (bin :i32binop s :z3-stack) :z3-stack
+  (match s
+    (nil '("this should not happen"))
+    ((f . s )
+     (match s
+       (nil '("this should not happen"))
+       ((s . r)
+	(append
+	 (list
+	  (string-append
+	  (string-append
+	   (string-append
+	    (string-append 
+	    (match bin
+	      ('add32 "(bvadd ")
+	      ('sub32 "(bvsub ")
+	      ('mul32 "(bvmul ")
+	      ('div_u32 "(bvudiv ")
+	      ('rem_u32 "(bvurem ")
+	      ('div_s32 "(bvsdiv ")
+	      ('rem_s32 "(bvsrem ")
+	      ('and32 "(bvand ")
+	      ('or32 "(bvor ")
+	      ('xor32 "(bvxor ")
+	      ('eq32 "(= ")
+	      ('ne32 "(bvne ")
+	      ('lt_s32 "(bvslt ")
+	      ('lt_u32 "(bvult ")
+	      ('gt_u32 "(bvugt ")
+	      ('gt_s32 "(bvsgt ")
+	      ('le_u32 "(bvule ")
+	      ('le_s32 "(bvsle ")
+	      ('ge_u32 "(bvuge ")
+	      ('ge_s32 "(bvsge "))	    
+	    f) " ")
+	   s) ")"))
+	 r))))))
+
+(definec pretty-print-i64binop (bin :i64binop s :z3-stack) :z3-stack
+  (match s
+    (nil '("this should not happen"))
+    ((f . s )
+     (match s
+       (nil '("this should not happen"))
+       ((s . r)
+	(append
+	 (list
+	  (string-append
+	  (string-append
+	   (string-append
+	    (string-append 
+	     (match bin
+	      ('add64 "bvadd")
+	      ('sub64 "bvsub")
+	      ('mul64 "bvmul")
+	      ('div_u64 "bvudiv")
+	      ('rem_u64 "bvurem")
+	      ('div_s64 "bvsdiv")
+	      ('rem_s64 "bvsrem")
+	      ('and64 "bvand")
+	      ('or64 "bvor")
+	      ('xor64 "bvxor")
+	      ('eq64 "=")
+	      ('ne64 "bvne")
+	      ('lt_s64 "bvslt")
+	      ('lt_u64 "bvult")
+	      ('gt_u64 "bvugt")
+	      ('gt_s64 "bvsgt")
+	      ('le_u64 "bvule")
+	      ('le_s64 "bvsle")
+	      ('ge_u64 "bvuge")
+	      ('ge_s64 "bvsge"))
+	     f) " ")
+	   s) ")"))
+	 r))))))
+
+ 
+(definec pretty-print-func (f :wasm-function s :z3-stack) :String
+    :skip-function-contractp t
+  (match f
+    (nil
+
+     
+     (match s
+       (nil "")
+       (& (car s))))
+
+    ((f . r)
+     (pretty-print-func
+      r
+      (match f
+	(:nop s)
+	(:const (pretty-print-const f s))
+	(:i32unop (pretty-print-i32unop f s))
+	(:i64unop (pretty-print-i64unop f s))
+	(:i32binop (pretty-print-i32binop f s))
+	(:i64binop (pretty-print-i64binop f s)))))))
+
+
+
+(pretty-print-func
+ (list
+  3
+  42
+  'add32)
+ '())
+
+(mv-let
+  (channel state)
+  (open-output-channel "z3-programs/exmp1" :object state)
+  (pprogn (fms
+	   (pretty-print-func
+	    (list 3 42 'add32)
+	    '())
+	   (list)
+               channel state nil)
+          (close-output-channel channel state)))
+
+
+
+;; Z3 Shenanigans
+
+;:q
+
+;(load "~/quicklisp/setup.lisp")
+;(ql:quickload :lisp-z3)
+;(defpackage :z3-bitvectors
+;  (:use :cl :z3))
+
+;(in-package :z3-bitvectors)
+
+;(solver-init)
+
+;(solver-push)
+;(z3-assert
+ ;; A bitvector variable must be given a length.
+ ;(v (:bv 5))
+ ;; the nil below indicates that we want to treat v as an unsigned
+ ;; value when we convert it to an integer.
+ ;(= (bv2int v nil) 20))
+;; Bitvectors are converted to CL bitvector objects.
+;(check-sat)
+;(solver-pop)
+
+;;(register-enum-sort :wasm-const val)
+
+;(defstruct i32 integer) ; (setq v (make-i32 :integer 3))
+;(defstruct i64 integer) ; (setq v (make-i64 :integer 3))
+
+;; we can define instructions as either:
+;; constants,
+;(deftype const '(i32 i64))
+
+;(defun z3-var (ind)
+;  (intern (concatenate 'string "X" (write-to-string ind)))) 
+
+;(defun wasm-specs (lst)
+;  (match lst
+;    ((type i32) `(,(z3-var lst) :bv32))
+;    ((type i64) `(,(z3-var lst) :bv64))
+;    ))
+
+;(wasm-specs 0)
+
+;(z3-assert-fn (wasm-specs 'S)
+;              (wasm-constraints 'S))
+
+
+
+;; const 3
+;; const 42
+;; i32.add
+
+;; reduces to in Z3
+;; X = 3 + 42
