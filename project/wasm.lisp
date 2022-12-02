@@ -405,8 +405,8 @@ which is a sum type of either an exception String or a program stack.
  
 (definec pretty-print-const (c :const s :z3-stack) :z3-stack
   (let ((n (if (i32p c)
-	 (string-append (string-append "(_ bv32 " (str::nat-to-dec-string c)) ")")
-       (string-append (string-append "(_ bv64 " (str::nat-to-dec-string c)) ")"))))
+	 (string-append (string-append "((_ int2bv 32) " (str::nat-to-dec-string c)) ")")
+       (string-append (string-append "((_ int2bv 64) " (str::nat-to-dec-string c)) ")"))))
     (append (list n) s)))
 	  
 (definec pretty-print-i32unop (c :i32unop s :z3-stack) :z3-stack
@@ -420,7 +420,7 @@ which is a sum type of either an exception String or a program stack.
 	       ('clz32 " (bvclz ")
 	       ('ctz32 " (bvctz ")
 	       ('popcnt32 "TODO")
-	       ('wrap64 " (_ bv64 "))
+	       ('wrap64 " ((_ int2bv 64) "))
 	     f) ")"))
       r))))
 
@@ -494,26 +494,26 @@ which is a sum type of either an exception String or a program stack.
 	   (string-append
 	    (string-append 
 	     (match bin
-	      ('add64 "bvadd")
-	      ('sub64 "bvsub")
-	      ('mul64 "bvmul")
-	      ('div_u64 "bvudiv")
-	      ('rem_u64 "bvurem")
-	      ('div_s64 "bvsdiv")
-	      ('rem_s64 "bvsrem")
-	      ('and64 "bvand")
-	      ('or64 "bvor")
-	      ('xor64 "bvxor")
-	      ('eq64 "=")
-	      ('ne64 "bvne")
-	      ('lt_s64 "bvslt")
-	      ('lt_u64 "bvult")
-	      ('gt_u64 "bvugt")
-	      ('gt_s64 "bvsgt")
-	      ('le_u64 "bvule")
-	      ('le_s64 "bvsle")
-	      ('ge_u64 "bvuge")
-	      ('ge_s64 "bvsge"))
+	      ('add64 "(bvadd")
+	      ('sub64 "(bvsub")
+	      ('mul64 "(bvmul")
+	      ('div_u64 "(bvudiv")
+	      ('rem_u64 "(bvurem")
+	      ('div_s64 "(bvsdiv")
+	      ('rem_s64 "(bvsrem")
+	      ('and64 "(bvand")
+	      ('or64 "(bvor")
+	      ('xor64 "(bvxor")
+	      ('eq64 "(=")
+	      ('ne64 "(bvne")
+	      ('lt_s64 "(bvslt")
+	      ('lt_u64 "(bvult")
+	      ('gt_u64 "(bvugt")
+	      ('gt_s64 "(bvsgt")
+	      ('le_u64 "(bvule")
+	      ('le_s64 "(bvsle")
+	      ('ge_u64 "(bvuge")
+	      ('ge_s64 "(bvsge"))
 	     f) " ")
 	   s) ")"))
 	 r))))))
@@ -551,12 +551,14 @@ which is a sum type of either an exception String or a program stack.
 (mv-let
   (channel state)
   (open-output-channel "z3-programs/exmp.z3" :object state)
-  (pprogn (fms
-	   (pretty-print-func
+  (pprogn  (fms "(set-logic ALL)~%" (list) channel state nil)
+           (fms
+	   (string-append "(simplify " (string-append (pretty-print-func
 	    (list 3 42 'add32)
-	    '())
+	    '()) ")"))
 	   (list)
-               channel state nil)
+	   channel state nil)
+	   (fms "~%(exit)" (list) channel state nil)
           (close-output-channel channel state)))
 
 
