@@ -397,9 +397,9 @@ which is a sum type of either an exception String or a program stack.
   (wasm-eval-h p nil))
 
 
-"pretty printing constants:
-for i32: (_ bv32 n)
-for i64; (_ bv64 n)"
+;; pretty printing constants:
+;; for i32: (_ bv32 n)
+;; for i64; (_ bv64 n)
 
 (defdata z3-stack (listof String))
  
@@ -414,14 +414,14 @@ for i64; (_ bv64 n)"
     (nil '("this should not happen"))
     ((f . r)    
      (append 
-      (list (string-append 
+      (list (string-append (string-append 
 	     (match c
-	       ('eqz32 "(= 0 ") 
-	       ('clz32 "TODO")
-	       ('ctz32 "TODO")
+	       ('eqz32 " (= 0 ") 
+	       ('clz32 " (bvclz ")
+	       ('ctz32 " (bvctz ")
 	       ('popcnt32 "TODO")
-	       ('wrap64 "TODO but actually"))
-	     f))
+	       ('wrap64 " (_ bv64 "))
+	     f) ")"))
       r))))
 
 (definec pretty-print-i64unop (c :i64unop s :z3-stack) :z3-stack 
@@ -430,15 +430,16 @@ for i64; (_ bv64 n)"
     ((f . r)
      (append
       (list
+       (string-append 
        (string-append 	
 	(match c
-	  ('eqz64 "=") 
-	  ('clz64 "bvclz")
-	  ('ctz64 "bvctz")
+	  ('eqz64 "(= 0 ") 
+	  ('clz64 "(bvclz ")
+	  ('ctz64 "(bvctz ")
 	  ('popcnt64 "TODO")
-	  ('extend_s32 "TODO but actually")
-	  ('extend_u32 "TODO but actually"))
-	f))
+	  ('extend_s32 "TODO")
+	  ('extend_u32 "TODO"))
+	f) ")"))
       r))))
 
 (definec pretty-print-i32binop (bin :i32binop s :z3-stack) :z3-stack
@@ -540,7 +541,6 @@ for i64; (_ bv64 n)"
 	(:i64binop (pretty-print-i64binop f s)))))))
 
 
-
 (pretty-print-func
  (list
   3
@@ -550,7 +550,7 @@ for i64; (_ bv64 n)"
 
 (mv-let
   (channel state)
-  (open-output-channel "z3-programs/exmp1" :object state)
+  (open-output-channel "z3-programs/exmp.z3" :object state)
   (pprogn (fms
 	   (pretty-print-func
 	    (list 3 42 'add32)
@@ -558,7 +558,6 @@ for i64; (_ bv64 n)"
 	   (list)
                channel state nil)
           (close-output-channel channel state)))
-
 
 
 ;; Z3 Shenanigans
